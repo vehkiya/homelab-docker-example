@@ -49,7 +49,7 @@ WEB_PORT=80
 WEBSECURE_PORT=443
 ```
 
-More certificate resolves supported by Traefik and details can be found on [the official Traefik documentation](https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/overview/)
+More certificate resolves supported by Traefik and details can be found on [the official Traefik documentation](https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/overview/) and the [ACME DNS Providers details page](https://go-acme.github.io/lego/dns/)
 
 ### Step 2: Launch the Stack (Staging Mode)
 
