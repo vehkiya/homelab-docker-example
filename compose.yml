@@ -1,0 +1,98 @@
+networks:
+  traefik_default:
+    external: true
+
+services:
+  tailscale:
+    image: tailscale/tailscale:v1.98.4
+    container_name: tailscale
+    hostname: traefik
+    environment:
+      TS_AUTHKEY: ${TAILSCALE_AUTH_KEY}
+      TS_EXTRA_ARGS: --advertise-tags=tag:container
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_ACCEPT_DNS: true
+    volumes:
+      - ${BASE_DIR}/traefik/tailscale:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - traefik_default
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+
+  reverse-proxy:
+    image: traefik:v3.7.5
+    container_name: reverse-proxy
+    command:
+      - "--log.level=INFO"
+      - "--api.insecure=false" # Security enhancement: Disabled unauthenticated api on port 8080
+      # Discover containers using Docker API
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=traefik_default"
+      # Entrypoints configuration
+      - "--entryPoints.web.address=:${WEB_PORT}"
+      - "--entryPoints.websecure.address=:${WEBSECURE_PORT}"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # TLS Configuration
+      - "--entrypoints.websecure.http.tls=true"
+      - "--entrypoints.websecure.http.tls.certResolver=${CERT_RESOLVER}"
+
+      # ====================================================================
+      # CERTIFICATE RESOLVERS (Uncomment the challenge method you want to use)
+      # ====================================================================
+
+      # OPTION A: DNS01 Challenge (Cloudflare Example)
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=${DNS_PROVIDER}"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=${DNS_RESOLVERS}"
+      - "--certificatesResolvers.cloudflare.acme.dnsChallenge.delayBeforeCheck=30"
+
+      # OPTION B: HTTP01 Challenge (Alternative)
+      # - "--certificatesresolvers.cloudflare.acme.httpchallenge=true"
+      # - "--certificatesresolvers.cloudflare.acme.httpchallenge.entrypoint=web"
+
+      # Common ACME Config
+      - "--certificatesresolvers.cloudflare.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.cloudflare.acme.storage=/letsencrypt/acme.json"
+      # Staging Server (Uncomment during initial testing to avoid rate limits)
+      - "--certificatesresolvers.cloudflare.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+    env_file:
+      - .env
+    volumes:
+      - "${BASE_DIR}/traefik/letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - traefik_default
+    ports:
+      - "${WEB_PORT}:80"
+      - "${WEBSECURE_PORT}:443"
+    restart: unless-stopped
+    depends_on:
+      - tailscale
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=${CERT_RESOLVER}"
+      - "traefik.http.routers.traefik.service=api@internal"
+
+  whoami:
+    image: "traefik/whoami:v1.11"
+    container_name: "test-service"
+    command:
+      - --port=2001
+      - --name=iamfoo
+    networks:
+      - traefik_default
+    depends_on:
+      - reverse-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.${DOMAIN}`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls.certresolver=${CERT_RESOLVER}"
+      - "traefik.http.services.whoami.loadbalancer.server.port=2001"
