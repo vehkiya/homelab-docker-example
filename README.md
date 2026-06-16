@@ -1,6 +1,6 @@
 # 🏡 Core Homelab Starter Kit
 
-Welcome! If you are looking to self-host services at home securely, you are in the right place. This setup is a streamlined, core version of the architecture found in **"vehkiya/homelab"**, designed to get you up and running without overwhelming configuration bloat.
+Welcome! If you are looking to self-host services at home securely, you are in the right place. This setup is a streamlined, core version of the architecture that I used when I hosted services using Docker containers, designed to get you up and running without overwhelming configuration bloat.
 
 ---
 
